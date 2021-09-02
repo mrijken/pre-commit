@@ -57,6 +57,15 @@ def hook_disappearing(tempdir_factory):
 
     yield auto_namedtuple(path=path, original_rev=original_rev)
 
+@pytest.fixture
+def hook_added(tempdir_factory):
+    path = make_repo(tempdir_factory, 'python_hooks_repo')
+    original_rev = git.head_rev(path)
+
+    with modify_manifest(path) as manifest:
+        manifest.append({'id': 'bar'})
+
+    yield auto_namedtuple(path=path, original_rev=original_rev)
 
 def test_rev_info_from_config():
     info = RevInfo.from_config({'repo': 'repo/path', 'rev': 'v1.2.3'})
@@ -416,6 +425,22 @@ def test_autoupdate_hook_disappearing_repo(hook_disappearing, tmpdir, store):
 
     assert autoupdate(str(cfg), store, freeze=False, tags_only=False) == 1
     assert cfg.read() == contents
+
+def test_autoupdate_hook_added_repo(hook_added, tmpdir, store):
+    contents = (
+        f'repos:\n'
+        f'-   repo: {hook_added.path}\n'
+        f'    rev: {hook_added.original_rev}\n'
+        f'    hooks:\n'
+        f'    -   id: foo\n'
+    )
+    cfg = tmpdir.join(C.CONFIG_FILE)
+    cfg.write(contents)
+
+    new_contents = contents + '    -   id: bar\n'
+    
+    assert autoupdate(str(cfg), store, freeze=False, tags_only=False, add_unused_hooks=True) == 1
+    assert cfg.read() == new_contents
 
 
 def test_autoupdate_local_hooks(in_git_dir, store):
