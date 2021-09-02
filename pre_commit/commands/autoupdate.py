@@ -153,7 +153,7 @@ def autoupdate(
         tags_only: bool,
         freeze: bool,
         repos: Sequence[str] = (),
-        add_unused_hooks: bool,
+        add_unused_hooks: bool = False,
 ) -> int:
     """Auto-update the pre-commit config to the latest versions of repos."""
     migrate_config(config_file, quiet=True)
