@@ -194,6 +194,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ),
     )
     autoupdate_parser.add_argument(
+        '--add_unused_hooks', action='store_true',
+        help=(
+            'Add hooks to the config which are not in included in the config but are present in the repo'
+        ),
+    )
+    autoupdate_parser.add_argument(
         '--freeze', action='store_true',
         help='Store "frozen" hashes in `rev` instead of tag names',
     )
@@ -351,6 +357,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 tags_only=not args.bleeding_edge,
                 freeze=args.freeze,
                 repos=args.repos,
+                add_unused_hooks=args.add_unused_hooks,
             )
         elif args.command == 'clean':
             return clean(store)
