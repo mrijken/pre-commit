@@ -7,6 +7,7 @@ from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
+from typing import Set
 
 import pre_commit.constants as C
 from pre_commit import git
@@ -63,20 +64,36 @@ class RepositoryCannotBeUpdatedError(RuntimeError):
     pass
 
 
-def _check_hooks_still_exist_at_rev(
+def _get_hooks_in_repo(
         repo_config: Dict[str, Any],
         info: RevInfo,
         store: Store,
-) -> None:
+) -> Set[str]:
     try:
         path = store.clone(repo_config['repo'], info.rev)
         manifest = load_manifest(os.path.join(path, C.MANIFEST_FILE))
     except InvalidManifestError as e:
         raise RepositoryCannotBeUpdatedError(str(e))
+        
+    return {hook['id'] for hook in manifest}
 
+def _get_unused_hooks(
+        repo_config: Dict[str, Any],
+        info: RevInfo,
+        store: Store,
+) -> Set[str]:
+    hooks = {hook['id'] for hook in repo_config['hooks']}
+    unused_hooks = _get_hooks_in_repo(repo_config, info, store) - hooks
+    return unused_hooks
+
+def _check_hooks_still_exist_at_rev(
+        repo_config: Dict[str, Any],
+        info: RevInfo,
+        store: Store,
+) -> None:
     # See if any of our hooks were deleted with the new commits
     hooks = {hook['id'] for hook in repo_config['hooks']}
-    hooks_missing = hooks - {hook['id'] for hook in manifest}
+    hooks_missing = hooks - _get_hooks_in_repo(repo_config, info, store)
     if hooks_missing:
         raise RepositoryCannotBeUpdatedError(
             f'Cannot update because the update target is missing these '
@@ -136,6 +153,7 @@ def autoupdate(
         tags_only: bool,
         freeze: bool,
         repos: Sequence[str] = (),
+        add_unused_hooks: bool,
 ) -> int:
     """Auto-update the pre-commit config to the latest versions of repos."""
     migrate_config(config_file, quiet=True)
@@ -176,6 +194,14 @@ def autoupdate(
             output.write_line('already up to date.')
             rev_infos.append(None)
 
+        if add_unused_hooks:
+            unused_hooks = _get_unused_hooks(repo_config, new_info, store)
+            if unused_hooks:
+                changed = True
+                
+            for unused_hook in unused_hooks:
+                repo_config['hooks'].append({'id': unused_hook})
+            
     if changed:
         _write_new_config(config_file, rev_infos)
 
